@@ -1,0 +1,64 @@
+name: github-actions-cicd-to-heroku #This is basically how our github actions will be named in the "Actions" tab.
+
+on: #This line describes the condition on which our workflow will be executed.
+  push: #So, on "push" (if I or any other developer, working with this project, pushes an update to our branch, then this code will excecute)
+    branches: [ "master" ] #Specified which branch is used as a trigger. In our case - branch master.
+  #I decided to remove lines containing another condition on "pull_request", because it is useless in our case.
+  #pull_request:
+  #  branches: [ "main" ]
+
+permissions: #Well, basically specifies the permissions of the files on which our docker container wil run by GitHub.
+  contents: read #Read permissions.
+
+jobs: #This line begins the list of our jobs that will be run by Git.
+  build: #The name of the first job.
+  
+    runs-on: ubuntu-latest #This is the docker image used for the docker container by GitHub. 
+    #Because all individual jobs run by gitactions are actually run in the docker container. Usually they do so
+    #simoltaniously, unless explicitly specified by us.
+
+    steps: #Actually, all the steps that should be run in this particular job.
+    - uses: actions/checkout@v3 #This is very interesting addon or scipt. Name as you wish. This scipt makes a pull
+    #request of our repository an then stores it in our docker container in our working directory.
+      with: #The requirement that should be sattisfied.
+          fetch-depth: 0 #This requirement of fetch depth
+    - name: Set up Python 3.10 #The name or the tab (better to say) that we will see during our gitactions task.
+      uses: actions/setup-python@v3 #Special scipt to set the python 3 in our docker container.
+      with: #The requirement that should be sattisfied.
+        python-version: "3.10" #Our "actions/setup-python@v3" script will use this particular version of python.
+        #Namely - 3.10.
+
+    - name: Install dependencies #Another tab that we will see, during the excecution of our gitactions task.
+  
+    #This is basically the regular command that is run in the docker container shell and installs python pip
+    #and installs flake8 and pytest libraries. It check the requirements.txt file for any libraries that may not
+    #be installed in our ubuntu-latest docker container and installs them.
+      
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Lint with flake8 #Just another tab in our gitactions log window
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: test #Just another tab in our gitactions log window
+    #This "run" command start the unittest of our application.
+      run: |
+        python3 -m unittest tests.py
+      env:
+        CI: true
+        #Not really sure what is ment by CI: true, because I can't see that variable used any further in the task.
+    - name: deploy #Just another tab in our gitactions log window
+    #Another regular shell command.
+    
+      #We use our dockerfile to build our image with the name "our_app". We instruct docker to create a new container 
+      #using our "our_app" image and to expose ports 5000. Then we list all our containers in docker.
+      run: | 
+        docker build -t our_app . 
+        docker run -d -p 5000:5000 our_app
+        docker ps -a
+   
+       
